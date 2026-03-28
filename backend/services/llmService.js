@@ -3,7 +3,7 @@ import { ollama } from "../config/ollama.js";
 export const generateAnswer = async (prompt) => {
   console.log("prompt length", prompt.length);
   const res = await ollama.post("/generate", {
-    model: "tinyllama",
+    model: "mistral",
     prompt,
     stream: false,
     options: {

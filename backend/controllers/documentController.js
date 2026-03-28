@@ -14,35 +14,39 @@ export const uploadDocument = async (req, res) => {
 
     const documentId = uuidv4();
 
-    // insert document record
-    await sql
-      `INSERT INTO documents (id, filename) VALUES (${documentId},${file.originalname})`
-    ;
+    await sql.begin(async (sql) => {
 
-    // extract text
-    const text = await parsePDF(file.path);
+      // insert document record
+      await sql`
+        INSERT INTO documents (id, filename)
+        VALUES (${documentId}, ${file.originalname})
+      `;
 
-    // chunk text
-    const chunks = chunkText(text, 300);    //array of string
+      // extract text
+      const text = await parsePDF(file.path);
 
+      // chunk text
+      const chunks = chunkText(text, 300);
 
-    for (const chunk of chunks) {
+      for (const chunk of chunks) {
 
-      const embedding = await generateEmbedding(chunk);
+        const embedding = await generateEmbedding(chunk);
 
+        const vector = `[${embedding.join(",")}]`;
 
-      const vector = `[${embedding.join(",")}]`;
+        await sql`
+          INSERT INTO chunks (id, document_id, content, embedding)
+          VALUES (${uuidv4()}, ${documentId}, ${chunk}, ${vector}::vector)
+        `;
+      }
 
-      await sql
-        `INSERT INTO chunks (id, document_id, content, embedding)
-         VALUES (${uuidv4()}, ${documentId}, ${chunk}, ${vector}::vector)`
-      ;
-    }
+    });
 
     res.json({
       message: "Document indexed successfully",
-      chunks: chunks.length,
+      chunks: "success",
     });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Document processing failed" });
@@ -63,7 +67,6 @@ export const getDocuments = async (req, res) => {
 export const deleteDocument = async (req, res) => {
   const { id } = req.params;
 
-  await sql`DELETE FROM chunks WHERE document_id = ${id}`;
   await sql`DELETE FROM documents WHERE id = ${id}`;
 
   res.json({ message: "Document deleted" });

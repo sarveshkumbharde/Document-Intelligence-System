@@ -1,7 +1,7 @@
 import { generateEmbedding } from "../services/embeddingService.js";
 import { retrieveChunks } from "../services/retrievalService.js";
 import { generateAnswer } from "../services/llmService.js";
-import sql from "../db/db.js"
+import sql from "../db/db.js";
 import { v4 as uuidv4 } from "uuid";
 
 export const chat = async (req, res) => {
@@ -12,6 +12,18 @@ export const chat = async (req, res) => {
       INSERT INTO chats (id, role, message)
       VALUES (${uuidv4()}, 'user', ${question})
     `;
+
+  const history = await sql`
+  SELECT role, message
+  FROM chats
+  ORDER BY created_at DESC
+  LIMIT 5
+`;
+
+  const chatHistory = history
+    .reverse()
+    .map((c) => `${c.role}: ${c.message}`)
+    .join("\n");
 
   const embedding = await generateEmbedding(question);
   console.timeEnd("embedding");
@@ -27,7 +39,17 @@ export const chat = async (req, res) => {
   console.log("Context size:", context.length);
 
   const prompt = `
-  Answer using the context below.
+  You are a helpful AI assistant.
+
+  Answer ONLY from the provided context.
+
+  If answer is not in context, say:
+  "I don't know based on the provided document."
+
+  Do not hallucinate.
+
+  Conversation History:
+  ${chatHistory}
 
   Context:
   ${context}
@@ -40,11 +62,10 @@ export const chat = async (req, res) => {
 
   const answer = await generateAnswer(prompt);
 
-  await sql `INSERT INTO chats(id, role, message) VALUES(${uuidv4()}, 'ai', ${answer})`
+  await sql`INSERT INTO chats(id, role, message) VALUES(${uuidv4()}, 'ai', ${answer})`;
   console.timeEnd("llm");
   res.json({ answer });
 };
-
 
 export const getChats = async (req, res) => {
   const chats = await sql`
@@ -54,7 +75,6 @@ export const getChats = async (req, res) => {
 
   res.json(chats);
 };
-
 
 export const deleteChats = async (req, res) => {
   await sql`DELETE FROM chats`;

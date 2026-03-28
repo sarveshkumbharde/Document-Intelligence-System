@@ -5,7 +5,7 @@ export const retrieveChunks = async (embedding) => {
     SELECT content
     FROM chunks
     ORDER BY embedding <=> ${JSON.stringify(embedding)}::vector
-    LIMIT 3
+    LIMIT 5
   `;
 
   return result.map((row) => row.content);
